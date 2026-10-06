@@ -23,6 +23,21 @@ export type InvoiceDraft = Omit<Invoice, 'id' | 'number'>;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+export function buildInvoiceLine(ctx: AppContext, address: Address, item: InvoiceItem, discount: Cents): InvoiceLine {
+  const net = item.quantity * item.unitPrice;
+  const taxRate = taxRateFor(address, item.taxClass, ctx.config.fallbackTaxRate);
+  return {
+    productId: item.productId,
+    description: item.description,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    net,
+    discount,
+    taxRate,
+    tax: applyRate(net - discount, taxRate),
+  };
+}
+
 /** Price an order: line nets, the coupon, tax per line, and the due date. Pure apart from the clock. */
 export function buildInvoice(ctx: AppContext, input: InvoiceInput): InvoiceDraft {
   const nets = input.items.map((item) => item.quantity * item.unitPrice);
@@ -31,19 +46,7 @@ export function buildInvoice(ctx: AppContext, input: InvoiceInput): InvoiceDraft
   const discount = coupon ? couponDiscount(coupon, subtotal) : 0;
   const lineDiscounts = allocateDiscount(nets, discount);
 
-  const lines: InvoiceLine[] = input.items.map((item, i) => {
-    const taxRate = taxRateFor(input.address, item.taxClass, ctx.config.fallbackTaxRate);
-    return {
-      productId: item.productId,
-      description: item.description,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      net: nets[i],
-      discount: lineDiscounts[i],
-      taxRate,
-      tax: applyRate(nets[i] - lineDiscounts[i], taxRate),
-    };
-  });
+  const lines = input.items.map((item, i) => buildInvoiceLine(ctx, input.address, item, lineDiscounts[i]));
 
   const tax = sumCents(lines.map((line) => line.tax));
   const issuedAt = ctx.clock.now();
