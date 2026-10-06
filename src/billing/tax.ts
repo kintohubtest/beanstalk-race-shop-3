@@ -27,8 +27,38 @@ const RATES: Record<string, Record<string, number>> = {
   },
 };
 
+/** Regional portion of the listed Canadian rates; the federal portion is 5%. */
+const CANADIAN_REGIONAL_RATES: Record<string, number> = {
+  AB: 0,
+  BC: 0.07,
+  MB: 0.07,
+  NB: 0.1,
+  NL: 0.1,
+  NS: 0.1,
+  NT: 0,
+  NU: 0,
+  ON: 0.08,
+  PE: 0.1,
+  QC: 0.09,
+  SK: 0.06,
+  YT: 0,
+};
+
 /** Share of the full rate charged on `reduced` goods such as food. */
 const REDUCED_SHARE = 0.5;
+
+/** Federal and regional rate fractions, with unknown destinations entirely regional. */
+export function taxComponentsFor(address: Address, taxClass: TaxClass, fallback: number): { federal: number; regional: number } {
+  if (taxClass === 'exempt') return { federal: 0, regional: 0 };
+  const country = address.country.toUpperCase();
+  const region = address.region.toUpperCase();
+  const canadianRegional = country === 'CA' ? CANADIAN_REGIONAL_RATES[region] : undefined;
+  const share = taxClass === 'reduced' ? REDUCED_SHARE : 1;
+  return {
+    federal: canadianRegional === undefined ? 0 : 0.05 * share,
+    regional: (canadianRegional ?? RATES[country]?.[region] ?? fallback) * share,
+  };
+}
 
 /**
  * The tax rate (a fraction, 0.13 = 13%) that applies to goods of `taxClass`
