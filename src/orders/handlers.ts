@@ -1,7 +1,7 @@
 import { badRequest } from '../lib/errors.ts';
 import { paginate } from '../lib/pagination.ts';
 import { asBody, optionalString, requireInt } from '../lib/validate.ts';
-import { created, ok } from '../router.ts';
+import { created, json, ok } from '../router.ts';
 import type { Handler } from '../router.ts';
 import type { ShippingMethod } from '../types.ts';
 import { checkout as placeOrder } from './checkout.ts';
@@ -21,8 +21,10 @@ export const checkout: Handler = (req, ctx) => {
   return created(order);
 };
 
-export const list: Handler = (req, ctx) =>
-  ok(paginate(listOrders(ctx, req.user!.id), req.query, ctx.config.pageSize));
+export const list: Handler = (req, ctx) => {
+  const { items, total } = paginate(listOrders(ctx, req.user!.id), req.query, ctx.config.pageSize);
+  return json(200, items, { 'x-total-count': String(total) });
+};
 
 export const get: Handler = (req, ctx) => ok(getVisibleOrder(ctx, req.user!, req.params.id));
 
