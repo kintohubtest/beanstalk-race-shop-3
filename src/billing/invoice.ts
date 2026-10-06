@@ -1,7 +1,7 @@
 import { applyRate, sumCents } from '../lib/money.ts';
 import type { Address, AppContext, Cents, Coupon, Invoice, InvoiceLine, TaxClass } from '../types.ts';
 import { allocateDiscount, couponDiscount, validateCoupon } from './discounts.ts';
-import { taxRateFor } from './tax.ts';
+import { taxComponentsFor, taxRateFor } from './tax.ts';
 
 export interface InvoiceItem {
   productId: string;
@@ -49,6 +49,10 @@ export function buildInvoice(ctx: AppContext, input: InvoiceInput): InvoiceDraft
   const lines = input.items.map((item, i) => buildInvoiceLine(ctx, input.address, item, lineDiscounts[i]));
 
   const tax = sumCents(lines.map((line) => line.tax));
+  const federal = sumCents(lines.map((line, i) => {
+    const components = taxComponentsFor(input.address, input.items[i].taxClass, ctx.config.fallbackTaxRate);
+    return applyRate(line.net - line.discount, components.federal);
+  }));
   const issuedAt = ctx.clock.now();
   return {
     orderId: input.orderId,
@@ -59,6 +63,8 @@ export function buildInvoice(ctx: AppContext, input: InvoiceInput): InvoiceDraft
     discount,
     couponCode: coupon?.id ?? null,
     tax,
+    // Assign rounding remainders to the regional portion to preserve the total.
+    taxBreakdown: { federal, regional: tax - federal },
     total: subtotal - discount + tax,
     status: 'open',
     issuedAt: issuedAt.toISOString(),
