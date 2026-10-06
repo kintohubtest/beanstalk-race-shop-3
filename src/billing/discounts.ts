@@ -1,9 +1,12 @@
-import { badRequest } from '../lib/errors.ts';
+import { badRequest, conflict } from '../lib/errors.ts';
 import { formatMoney, percentOf, sumCents } from '../lib/money.ts';
 import type { Cents, Coupon, Currency } from '../types.ts';
 
 /** Check that `coupon` may be used on a cart worth `subtotal`. Returns the coupon for chaining. */
 export function validateCoupon(coupon: Coupon, subtotal: Cents, currency: Currency): Coupon {
+  if (coupon.maxRedemptions !== null && coupon.redemptions >= coupon.maxRedemptions) {
+    throw conflict('coupon has been fully redeemed');
+  }
   if (subtotal < coupon.minSubtotal) {
     throw badRequest(`coupon ${coupon.id} needs a subtotal of at least ${formatMoney(coupon.minSubtotal, currency)}`);
   }
